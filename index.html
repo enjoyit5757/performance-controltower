@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ecare QIA Performance Control Tower</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    body { background-color: #f0f4f8; font-family: 'Poppins', sans-serif; font-weight: 300; margin: 0; padding: 0; color: #334155; }
+    h1, h2, th, .font-medium { font-weight: 400; }
+
+    .card { background: rgba(255, 255, 255, 0.95); border-radius: 1rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); padding: 1.5rem; transition: all 0.3s ease; border: 1px solid #f1f5f9; }
+    .card:hover { transform: translateY(-5px); box-shadow: 0 12px 25px rgba(0, 0, 0, 0.08); border-color: #e2e8f0; }
+
+    .loader { border-top-color: #3b82f6; animation: spinner 1s linear infinite; }
+    @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    .table-container { max-height: 65vh; overflow-y: auto; }
+    th { position: sticky; top: 0; background-color: #ffffff; z-index: 10; border-bottom: 2px solid #f1f5f9; }
+    tr { transition: background-color 0.2s ease; }
+
+    select, input { transition: all 0.2s ease; }
+    select:focus, input:focus { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); border-color: #3b82f6; }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+      .card:hover { transform: none; }
+    }
+  </style>
+</head>
+<body class="p-3 md:p-5">
+  <div id="app" class="w-full mx-auto">
+
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 px-1 gap-4">
+      <h1 class="text-2xl md:text-3xl tracking-wide uppercase text-slate-800">
+        📊 Ecare QIA Performance Control Tower
+      </h1>
+      <div id="conn-status" class="text-sm text-slate-500 flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        Menghubungkan ke Google Sheet
+      </div>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm mb-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5 border border-slate-100 relative overflow-hidden">
+      <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
+      <div>
+        <label for="filter-bulan" class="block text-xs uppercase tracking-wider text-slate-500 mb-2">Bulan</label>
+        <select id="filter-bulan" class="w-full rounded-xl border-slate-200 bg-slate-50 p-2.5 text-sm outline-none border focus:bg-white"></select>
+      </div>
+      <div>
+        <label for="filter-tahun" class="block text-xs uppercase tracking-wider text-slate-500 mb-2">Tahun</label>
+        <select id="filter-tahun" class="w-full rounded-xl border-slate-200 bg-slate-50 p-2.5 text-sm outline-none border focus:bg-white"></select>
+      </div>
+      <div>
+        <label for="filter-channel" class="block text-xs uppercase tracking-wider text-slate-500 mb-2">Channel</label>
+        <select id="filter-channel" class="w-full rounded-xl border-slate-200 bg-slate-50 p-2.5 text-sm outline-none border focus:bg-white"></select>
+      </div>
+      <div>
+        <label for="filter-spv" class="block text-xs uppercase tracking-wider text-slate-500 mb-2">SPV</label>
+        <select id="filter-spv" class="w-full rounded-xl border-slate-200 bg-slate-50 p-2.5 text-sm outline-none border focus:bg-white"></select>
+      </div>
+      <div>
+        <label for="filter-tl" class="block text-xs uppercase tracking-wider text-slate-500 mb-2">Team Leader</label>
+        <select id="filter-tl" class="w-full rounded-xl border-slate-200 bg-slate-50 p-2.5 text-sm outline-none border focus:bg-white"></select>
+      </div>
+      <div>
+        <label for="filter-los" class="block text-xs uppercase tracking-wider text-slate-500 mb-2">LOS</label>
+        <select id="filter-los" class="w-full rounded-xl border-slate-200 bg-slate-50 p-2.5 text-sm outline-none border focus:bg-white"></select>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="flex flex-col justify-center items-center py-32">
+      <div class="loader rounded-full border-4 border-t-4 border-slate-100 h-16 w-16 mb-4"></div>
+      <p class="text-slate-400 text-sm tracking-widest uppercase">Memuat Data...</p>
+    </div>
+
+    <!-- Error state -->
+    <div id="error-box" class="hidden bg-white border border-red-100 rounded-2xl p-8 text-center max-w-2xl mx-auto my-20">
+      <div class="text-4xl mb-3">🔌</div>
+      <h2 class="text-xl text-slate-800 mb-2">Data belum bisa dimuat</h2>
+      <p id="error-detail" class="text-sm text-slate-500 mb-5"></p>
+      <div class="text-left text-sm text-slate-600 bg-slate-50 rounded-xl p-4 space-y-2">
+        <p class="text-slate-800">Cara memperbaiki:</p>
+        <p>1. Buka Google Sheet sumber, klik <span class="text-slate-800">Share</span> → General access → <span class="text-slate-800">Anyone with the link</span> sebagai <span class="text-slate-800">Viewer</span>.</p>
+        <p>2. Pastikan <code class="bg-white px-1 rounded border">SHEET_ID</code> dan <code class="bg-white px-1 rounded border">SHEET_NAME</code> di bagian CONFIG file ini sudah benar.</p>
+        <p>3. Muat ulang halaman.</p>
+      </div>
+      <button onclick="location.reload()" class="mt-5 bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-6 rounded-xl text-sm">Coba lagi</button>
+    </div>
+
+    <!-- KPI Cards -->
+    <div id="dashboard-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 hidden mb-6">
+      <div class="card relative overflow-hidden group">
+        <div class="flex justify-between items-start">
+          <div>
+            <div class="text-slate-400 text-xs uppercase tracking-widest mb-1">Avg Respon Time</div>
+            <div id="val-rt" class="text-3xl text-slate-800">-</div>
+          </div>
+          <div class="p-3 rounded-xl bg-blue-50 text-blue-500 group-hover:scale-110 transition-transform">⏱️</div>
+        </div>
+      </div>
+      <div class="card relative overflow-hidden group">
+        <div class="flex justify-between items-start">
+          <div>
+            <div class="text-slate-400 text-xs uppercase tracking-widest mb-1">Total PPA</div>
+            <div id="val-ppa" class="text-3xl text-slate-800">-</div>
+          </div>
+          <div class="p-3 rounded-xl bg-green-50 text-green-500 group-hover:scale-110 transition-transform">📄</div>
+        </div>
+      </div>
+      <div class="card relative overflow-hidden group">
+        <div class="flex justify-between items-start">
+          <div>
+            <div class="text-slate-400 text-xs uppercase tracking-widest mb-1">Sales Ratio</div>
+            <div id="val-sales" class="text-3xl text-slate-800">-</div>
+          </div>
+          <div class="p-3 rounded-xl bg-yellow-50 text-yellow-500 group-hover:scale-110 transition-transform">📈</div>
+        </div>
+      </div>
+      <div class="card relative overflow-hidden group">
+        <div class="flex justify-between items-start">
+          <div>
+            <div class="text-slate-400 text-xs uppercase tracking-widest mb-1">Avg QA Score</div>
+            <div id="val-qa" class="text-3xl text-slate-800">-</div>
+          </div>
+          <div class="p-3 rounded-xl bg-purple-50 text-purple-500 group-hover:scale-110 transition-transform">⭐</div>
+        </div>
+      </div>
+      <div class="card relative overflow-hidden group">
+        <div class="flex justify-between items-start">
+          <div>
+            <div class="text-slate-400 text-xs uppercase tracking-widest mb-1">Avg TO</div>
+            <div id="val-to" class="text-3xl text-slate-800">-</div>
+          </div>
+          <div class="p-3 rounded-xl bg-red-50 text-red-500 group-hover:scale-110 transition-transform">📞</div>
+        </div>
+      </div>
+      <div class="card relative overflow-hidden group">
+        <div class="flex justify-between items-start">
+          <div>
+            <div class="text-slate-400 text-xs uppercase tracking-widest mb-1">Quality Respon</div>
+            <div id="val-qr" class="text-3xl text-slate-800">-</div>
+          </div>
+          <div class="p-3 rounded-xl bg-indigo-50 text-indigo-500 group-hover:scale-110 transition-transform">🛡️</div>
+        </div>
+      </div>
+      <div class="card relative overflow-hidden group lg:col-span-2">
+        <div class="flex justify-between items-start">
+          <div>
+            <div class="text-slate-400 text-xs uppercase tracking-widest mb-1">FCR (First Contact Resolution)</div>
+            <div id="val-fcr" class="text-3xl text-slate-800">-</div>
+          </div>
+          <div class="p-3 rounded-xl bg-teal-50 text-teal-500 group-hover:scale-110 transition-transform">🎯</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div id="table-section" class="bg-white rounded-2xl shadow-sm border border-slate-100 hidden overflow-hidden">
+      <div class="p-5 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-white">
+        <h2 class="text-xl text-slate-800">Agent Performance Detil <span id="row-count" class="text-sm text-slate-400"></span></h2>
+        <div class="flex flex-col sm:flex-row w-full md:w-auto gap-3">
+          <div class="relative w-full sm:w-64">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">🔍</span>
+            <input type="text" id="search-agent" placeholder="Cari Agent / CSDM..." class="w-full rounded-xl border-slate-200 shadow-sm py-2.5 pl-10 pr-4 text-sm border bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-blue-100">
+          </div>
+          <button id="btn-export" class="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2.5 px-5 rounded-xl text-sm transition-all shadow-sm shadow-green-200">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            Download .xlsx
+          </button>
+        </div>
+      </div>
+
+      <div class="table-container w-full overflow-x-auto">
+        <table class="min-w-full text-sm text-left whitespace-nowrap">
+          <thead class="text-slate-500 uppercase tracking-wider text-xs">
+            <tr>
+              <th class="px-5 py-4">Bulan</th>
+              <th class="px-5 py-4">Tahun</th>
+              <th class="px-5 py-4">Nama</th>
+              <th class="px-5 py-4">LOS</th>
+              <th class="px-5 py-4">CSDM</th>
+              <th class="px-5 py-4">Team Leader</th>
+              <th class="px-5 py-4">SPV</th>
+              <th class="px-5 py-4">Kehadiran</th>
+              <th class="px-5 py-4">Respon Time</th>
+              <th class="px-5 py-4 text-right">PPA</th>
+              <th class="px-5 py-4 text-right">Sales Ratio</th>
+              <th class="px-5 py-4 text-right">QA Score</th>
+              <th class="px-5 py-4 text-right">tNPS</th>
+              <th class="px-5 py-4 text-right">TO</th>
+              <th class="px-5 py-4 text-right">AHT</th>
+              <th class="px-5 py-4 text-right">Total KIP DSC</th>
+              <th class="px-5 py-4 text-right">Total Ticket</th>
+              <th class="px-5 py-4 text-right">Total Bad Ticket</th>
+              <th class="px-5 py-4 text-right">FCR</th>
+            </tr>
+          </thead>
+          <tbody id="table-body" class="divide-y divide-slate-100 text-slate-600"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* =======================================================================
+       CONFIG — ubah bagian ini saja
+       -----------------------------------------------------------------------
+       SHEET_ID   : ID Google Sheet (ada di URL setelah /d/ ... /edit)
+       SHEET_NAME : nama tab sheet. Kosongkan ("") untuk memakai sheet pertama.
+       Syarat: Sheet harus di-share "Anyone with the link — Viewer".
+       ======================================================================= */
+    const SHEET_ID   = '1T6g3gBGJAki7ZLN8Z4Egx-wnIVqH6Ocgh8PYH7YxAxc';
+    const SHEET_NAME = '';
+
+    /* Peta kolom (indeks kolom A=0, B=1, ...). Sama persis dengan Apps Script. */
+    const COL = {
+      bulan: 1, tahun: 2, nama: 3, los: 4, csdm: 5, channel: 6,
+      teamLeader: 7, spv: 8, kehadiran: 9,
+      responTime: 11, ppa: 12, sales: 13, interaksi: 14, salesRatio: 15,
+      qaScore: 16, tnps: 17, to: 18, aht: 19,
+      kipDsc: 21, totalTicket: 23, badTicket: 24,
+      qualityRespon: 25, fcr: 27
+    };
+
+    let rawData = [];
+    let currentFilteredData = [];
+
+    /* ---------------------- Ambil data dari Google Sheet ------------------- */
+    function buildUrl() {
+      let url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&headers=1&tq=${encodeURIComponent('select *')}`;
+      if (SHEET_NAME) url += `&sheet=${encodeURIComponent(SHEET_NAME)}`;
+      return url;
+    }
+
+    async function getDashboardData() {
+      const res = await fetch(buildUrl());
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' — sheet mungkin belum publik.');
+
+      const text = await res.text();
+      const start = text.indexOf('{');
+      const end = text.lastIndexOf('}');
+      if (start === -1 || end === -1) throw new Error('Format respons tidak dikenali.');
+
+      const json = JSON.parse(text.substring(start, end + 1));
+      if (json.status === 'error') {
+        throw new Error((json.errors || []).map(e => e.detailed_message || e.message).join(' ') || 'Query ditolak.');
+      }
+
+      const rows = (json.table && json.table.rows) || [];
+
+      // v = nilai mentah (seperti getValues), f = teks terformat (seperti getDisplayValues)
+      const V = (r, i) => (r.c && r.c[i] && r.c[i].v != null) ? r.c[i].v : '';
+      const F = (r, i) => {
+        if (!r.c || !r.c[i]) return '';
+        const cell = r.c[i];
+        if (cell.f != null) return cell.f;
+        return cell.v != null ? String(cell.v) : '';
+      };
+      const num = (val) => {
+        if (typeof val === 'number') return val;
+        const n = parseFloat(String(val).replace(/\s/g, '').replace('%', '').replace(',', '.'));
+        return isNaN(n) ? 0 : n;
+      };
+
+      return rows.map(r => ({
+        bulan:      V(r, COL.bulan),
+        tahun:      V(r, COL.tahun),
+        los:        V(r, COL.los),
+        channel:    V(r, COL.channel),
+        teamLeader: V(r, COL.teamLeader),
+        spv:        V(r, COL.spv),
+
+        responTime:    num(V(r, COL.responTime)),
+        ppa:           num(V(r, COL.ppa)),
+        sales:         num(V(r, COL.sales)),
+        interaksi:     num(V(r, COL.interaksi)),
+        qaScore:       num(V(r, COL.qaScore)),
+        to:            num(V(r, COL.to)),
+        kipDsc:        num(V(r, COL.kipDsc)),
+        totalTicket:   num(V(r, COL.totalTicket)),
+        qualityRespon: num(V(r, COL.qualityRespon)),
+
+        t_bulan:       F(r, COL.bulan),
+        t_tahun:       F(r, COL.tahun),
+        t_nama:        F(r, COL.nama),
+        t_los:         F(r, COL.los),
+        t_csdm:        F(r, COL.csdm),
+        t_tl:          F(r, COL.teamLeader),
+        t_spv:         F(r, COL.spv),
+        t_kehadiran:   F(r, COL.kehadiran),
+        t_rt:          F(r, COL.responTime),
+        t_ppa:         F(r, COL.ppa),
+        t_salesRatio:  F(r, COL.salesRatio),
+        t_qaScore:     F(r, COL.qaScore),
+        t_tnps:        F(r, COL.tnps),
+        t_to:          F(r, COL.to),
+        t_aht:         F(r, COL.aht),
+        t_kipDsc:      F(r, COL.kipDsc),
+        t_totalTicket: F(r, COL.totalTicket),
+        t_badTicket:   F(r, COL.badTicket),
+        t_fcr:         F(r, COL.fcr)
+      })).filter(d => String(d.t_nama).trim() !== '');
+    }
+
+    /* ------------------------------- Init --------------------------------- */
+    getDashboardData()
+      .then(data => {
+        rawData = data;
+        populateFilters();
+        updateDashboard();
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('dashboard-cards').classList.remove('hidden');
+        document.getElementById('table-section').classList.remove('hidden');
+        document.getElementById('conn-status').innerHTML =
+          '<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Live Data Connected';
+      })
+      .catch(err => {
+        console.error(err);
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error-box').classList.remove('hidden');
+        document.getElementById('error-detail').innerText = err.message;
+        document.getElementById('conn-status').innerHTML =
+          '<span class="w-2 h-2 rounded-full bg-red-500"></span> Data tidak terhubung';
+      });
+
+    /* ------------------------------ Filter -------------------------------- */
+    function populateFilters() {
+      const getUnique = (key) => [...new Set(rawData.map(d => d[key]).filter(v => v !== '' && v != null))].sort();
+
+      fillSelect('filter-bulan', getUnique('bulan'));
+      fillSelect('filter-tahun', getUnique('tahun'));
+      fillSelect('filter-channel', getUnique('channel'));
+      fillSelect('filter-spv', getUnique('spv'));
+      fillSelect('filter-tl', getUnique('teamLeader'));
+      fillSelect('filter-los', getUnique('los'));
+
+      document.querySelectorAll('select').forEach(sel => sel.addEventListener('change', updateDashboard));
+      document.getElementById('search-agent').addEventListener('input', updateDashboard);
+      document.getElementById('btn-export').addEventListener('click', downloadExcel);
+    }
+
+    function escapeHtml(str) {
+      return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function fillSelect(id, options) {
+      const el = document.getElementById(id);
+      el.innerHTML = '<option value="ALL">Semua</option>' +
+        options.map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('');
+    }
+
+    /* ---------------------------- Render ---------------------------------- */
+    function updateDashboard() {
+      const fBulan   = document.getElementById('filter-bulan').value;
+      const fTahun   = document.getElementById('filter-tahun').value;
+      const fChannel = document.getElementById('filter-channel').value;
+      const fSpv     = document.getElementById('filter-spv').value;
+      const fTl      = document.getElementById('filter-tl').value;
+      const fLos     = document.getElementById('filter-los').value;
+      const searchTerm = document.getElementById('search-agent').value.toLowerCase();
+
+      currentFilteredData = rawData.filter(d => {
+        const namaAgent = d.t_nama ? String(d.t_nama).toLowerCase() : '';
+        const csdmVal   = d.t_csdm ? String(d.t_csdm).toLowerCase() : '';
+        const matchSearch = namaAgent.includes(searchTerm) || csdmVal.includes(searchTerm);
+
+        return (fBulan === 'ALL'   || String(d.bulan) === fBulan) &&
+               (fTahun === 'ALL'   || String(d.tahun) === fTahun) &&
+               (fChannel === 'ALL' || String(d.channel) === fChannel) &&
+               (fSpv === 'ALL'     || String(d.spv) === fSpv) &&
+               (fTl === 'ALL'      || String(d.teamLeader) === fTl) &&
+               (fLos === 'ALL'     || String(d.los) === fLos) &&
+               matchSearch;
+      });
+
+      let sumRT = 0, countRT = 0, sumPPA = 0, sumSales = 0, sumInteraksi = 0;
+      let sumQA = 0, countQA = 0, sumTO = 0, countTO = 0, sumQR = 0, countQR = 0;
+      let sumKipDsc = 0, sumTicket = 0;
+
+      const rowsHtml = currentFilteredData.map(d => {
+        sumRT += d.responTime; countRT++;
+        sumPPA += d.ppa;
+        sumSales += d.sales; sumInteraksi += d.interaksi;
+        sumQA += d.qaScore; countQA++;
+        sumTO += d.to; countTO++;
+        sumQR += d.qualityRespon; countQR++;
+        sumKipDsc += d.kipDsc; sumTicket += d.totalTicket;
+
+        return `
+          <tr class="hover:bg-slate-50/80 cursor-default">
+            <td class="px-5 py-3">${escapeHtml(d.t_bulan)}</td>
+            <td class="px-5 py-3">${escapeHtml(d.t_tahun)}</td>
+            <td class="px-5 py-3 text-slate-800">${escapeHtml(d.t_nama)}</td>
+            <td class="px-5 py-3">${escapeHtml(d.t_los)}</td>
+            <td class="px-5 py-3">${escapeHtml(d.t_csdm)}</td>
+            <td class="px-5 py-3">${escapeHtml(d.t_tl)}</td>
+            <td class="px-5 py-3">${escapeHtml(d.t_spv)}</td>
+            <td class="px-5 py-3">${escapeHtml(d.t_kehadiran)}</td>
+            <td class="px-5 py-3">${escapeHtml(d.t_rt)}</td>
+            <td class="px-5 py-3 text-right">${escapeHtml(d.t_ppa)}</td>
+            <td class="px-5 py-3 text-right text-blue-500">${escapeHtml(d.t_salesRatio)}</td>
+            <td class="px-5 py-3 text-right">${escapeHtml(d.t_qaScore)}</td>
+            <td class="px-5 py-3 text-right">${escapeHtml(d.t_tnps)}</td>
+            <td class="px-5 py-3 text-right text-red-400">${escapeHtml(d.t_to)}</td>
+            <td class="px-5 py-3 text-right">${escapeHtml(d.t_aht)}</td>
+            <td class="px-5 py-3 text-right">${escapeHtml(d.t_kipDsc)}</td>
+            <td class="px-5 py-3 text-right">${escapeHtml(d.t_totalTicket)}</td>
+            <td class="px-5 py-3 text-right">${escapeHtml(d.t_badTicket)}</td>
+            <td class="px-5 py-3 text-right text-teal-600">${escapeHtml(d.t_fcr)}</td>
+          </tr>`;
+      }).join('');
+
+      document.getElementById('table-body').innerHTML = rowsHtml ||
+        `<tr><td colspan="19" class="px-5 py-10 text-center text-slate-400">Tidak ada data yang cocok dengan filter ini.</td></tr>`;
+      document.getElementById('row-count').innerText = `(${currentFilteredData.length} baris)`;
+
+      document.getElementById('val-rt').innerText    = countRT ? (sumRT / countRT).toFixed(2) : 0;
+      document.getElementById('val-ppa').innerText   = sumPPA.toLocaleString('id-ID');
+      document.getElementById('val-sales').innerText = sumInteraksi ? ((sumSales / sumInteraksi) * 100).toFixed(2) + '%' : '0%';
+      document.getElementById('val-qa').innerText    = countQA ? (sumQA / countQA).toFixed(2) : 0;
+      document.getElementById('val-to').innerText    = countTO ? (sumTO / countTO).toFixed(2) : 0;
+      document.getElementById('val-qr').innerText    = countQR ? (sumQR / countQR).toFixed(2) : 0;
+      document.getElementById('val-fcr').innerText   = sumTicket ? ((sumKipDsc / sumTicket) * 100).toFixed(2) + '%' : '0%';
+    }
+
+    /* ---------------------------- Export ---------------------------------- */
+    function downloadExcel() {
+      if (currentFilteredData.length === 0) {
+        alert('Tidak ada data untuk diexport!');
+        return;
+      }
+      const excelData = currentFilteredData.map(d => ({
+        "Bulan": d.t_bulan, "Tahun": d.t_tahun, "Nama Agent": d.t_nama, "LOS": d.t_los, "CSDM": d.t_csdm,
+        "Team Leader": d.t_tl, "SPV": d.t_spv, "Kehadiran": d.t_kehadiran, "Respon Time": d.t_rt,
+        "PPA": d.t_ppa, "Sales Ratio": d.t_salesRatio, "QA Score": d.t_qaScore, "tNPS": d.t_tnps,
+        "TO": d.t_to, "AHT": d.t_aht, "Total KIP DSC": d.t_kipDsc, "Total Ticket": d.t_totalTicket,
+        "Total Bad Ticket": d.t_badTicket, "FCR": d.t_fcr
+      }));
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Agent Performance");
+      XLSX.writeFile(workbook, "Agent_Performance_Detil.xlsx");
+    }
+  </script>
+</body>
+</html>

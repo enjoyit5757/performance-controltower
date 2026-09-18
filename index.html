@@ -44,11 +44,11 @@
       </h1>
       <div id="conn-status" class="text-sm text-slate-500 flex items-center gap-2">
         <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-        Menghubungkan ke Google Sheet
+        Menghubungkan ke sumber data
       </div>
     </div>
 
-    <!-- Filter Section -->
+    <!-- Filter -->
     <div class="bg-white p-6 rounded-2xl shadow-sm mb-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5 border border-slate-100 relative overflow-hidden">
       <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
       <div>
@@ -83,21 +83,21 @@
       <p class="text-slate-400 text-sm tracking-widest uppercase">Memuat Data...</p>
     </div>
 
-    <!-- Error state -->
+    <!-- Error -->
     <div id="error-box" class="hidden bg-white border border-red-100 rounded-2xl p-8 text-center max-w-2xl mx-auto my-20">
       <div class="text-4xl mb-3">🔌</div>
       <h2 class="text-xl text-slate-800 mb-2">Data belum bisa dimuat</h2>
       <p id="error-detail" class="text-sm text-slate-500 mb-5"></p>
       <div class="text-left text-sm text-slate-600 bg-slate-50 rounded-xl p-4 space-y-2">
-        <p class="text-slate-800">Cara memperbaiki:</p>
-        <p>1. Buka Google Sheet sumber, klik <span class="text-slate-800">Share</span> → General access → <span class="text-slate-800">Anyone with the link</span> sebagai <span class="text-slate-800">Viewer</span>.</p>
-        <p>2. Pastikan <code class="bg-white px-1 rounded border">SHEET_ID</code> dan <code class="bg-white px-1 rounded border">SHEET_NAME</code> di bagian CONFIG file ini sudah benar.</p>
-        <p>3. Muat ulang halaman.</p>
+        <p class="text-slate-800">Cek berurutan:</p>
+        <p>1. Buka <code class="bg-white px-1 rounded border">APPS_SCRIPT_URL</code> + <code class="bg-white px-1 rounded border">?mode=json</code> langsung di tab baru. Kalau muncul halaman login atau error, masalahnya di deployment Apps Script, bukan di halaman ini.</p>
+        <p>2. Di Apps Script: Deploy → Manage deployments → ikon pensil → Execute as <span class="text-slate-800">Me</span>, Who has access <span class="text-slate-800">Anyone</span>.</p>
+        <p>3. Setiap kali Code.gs diubah, buat <span class="text-slate-800">New version</span> pada deployment yang sama, lalu Deploy.</p>
       </div>
       <button onclick="location.reload()" class="mt-5 bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-6 rounded-xl text-sm">Coba lagi</button>
     </div>
 
-    <!-- KPI Cards -->
+    <!-- KPI -->
     <div id="dashboard-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 hidden mb-6">
       <div class="card relative overflow-hidden group">
         <div class="flex justify-between items-start">
@@ -164,7 +164,7 @@
       </div>
     </div>
 
-    <!-- Table -->
+    <!-- Tabel -->
     <div id="table-section" class="bg-white rounded-2xl shadow-sm border border-slate-100 hidden overflow-hidden">
       <div class="p-5 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 bg-white">
         <h2 class="text-xl text-slate-800">Agent Performance Detil <span id="row-count" class="text-sm text-slate-400"></span></h2>
@@ -213,106 +213,52 @@
 
   <script>
     /* =======================================================================
-       CONFIG — ubah bagian ini saja
+       CONFIG
        -----------------------------------------------------------------------
-       SHEET_ID   : ID Google Sheet (ada di URL setelah /d/ ... /edit)
-       SHEET_NAME : nama tab sheet. Kosongkan ("") untuk memakai sheet pertama.
-       Syarat: Sheet harus di-share "Anyone with the link — Viewer".
+       APPS_SCRIPT_URL : URL deployment Apps Script (akhiran /exec).
+       Sheet TIDAK perlu dibuat publik — Apps Script yang membacanya.
+       Syarat deployment: Execute as = Me, Who has access = Anyone.
        ======================================================================= */
-    const SHEET_ID   = '1T6g3gBGJAki7ZLN8Z4Egx-wnIVqH6Ocgh8PYH7YxAxc';
-    const SHEET_NAME = '';
-
-    /* Peta kolom (indeks kolom A=0, B=1, ...). Sama persis dengan Apps Script. */
-    const COL = {
-      bulan: 1, tahun: 2, nama: 3, los: 4, csdm: 5, channel: 6,
-      teamLeader: 7, spv: 8, kehadiran: 9,
-      responTime: 11, ppa: 12, sales: 13, interaksi: 14, salesRatio: 15,
-      qaScore: 16, tnps: 17, to: 18, aht: 19,
-      kipDsc: 21, totalTicket: 23, badTicket: 24,
-      qualityRespon: 25, fcr: 27
-    };
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwp9Iw--CaZupLGs6bMya9NUcVCmC37rYq3v3SkyoVPMqDUz_EsuGapge5q6OFIJAPX/exec';
 
     let rawData = [];
     let currentFilteredData = [];
 
-    /* ---------------------- Ambil data dari Google Sheet ------------------- */
-    function buildUrl() {
-      let url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&headers=1&tq=${encodeURIComponent('select *')}`;
-      if (SHEET_NAME) url += `&sheet=${encodeURIComponent(SHEET_NAME)}`;
-      return url;
+    /* ------------------------- Ambil data (JSON) --------------------------- */
+    function fetchJsonp(baseUrl) {
+      return new Promise((resolve, reject) => {
+        const cbName = '__qia_cb_' + Date.now();
+        const script = document.createElement('script');
+        const timer = setTimeout(() => { cleanup(); reject(new Error('Waktu tunggu habis saat memanggil Apps Script.')); }, 25000);
+
+        function cleanup() {
+          clearTimeout(timer);
+          try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+          if (script.parentNode) script.parentNode.removeChild(script);
+        }
+
+        window[cbName] = (data) => { cleanup(); resolve(data); };
+        script.onerror = () => { cleanup(); reject(new Error('Apps Script tidak bisa dihubungi. Cek pengaturan akses deployment.')); };
+        script.src = baseUrl + (baseUrl.indexOf('?') === -1 ? '?' : '&') + 'callback=' + cbName;
+        document.body.appendChild(script);
+      });
     }
 
     async function getDashboardData() {
-      const res = await fetch(buildUrl());
-      if (!res.ok) throw new Error('HTTP ' + res.status + ' — sheet mungkin belum publik.');
-
-      const text = await res.text();
-      const start = text.indexOf('{');
-      const end = text.lastIndexOf('}');
-      if (start === -1 || end === -1) throw new Error('Format respons tidak dikenali.');
-
-      const json = JSON.parse(text.substring(start, end + 1));
-      if (json.status === 'error') {
-        throw new Error((json.errors || []).map(e => e.detailed_message || e.message).join(' ') || 'Query ditolak.');
+      try {
+        const res = await fetch(APPS_SCRIPT_URL + '?mode=json', { redirect: 'follow' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error('Respons bukan data tabel.');
+        return data;
+      } catch (err) {
+        // Sebagian browser/jaringan memblokir fetch lintas domain ke Google.
+        // JSONP memakai tag <script>, tidak terkena batasan itu.
+        return await fetchJsonp(APPS_SCRIPT_URL);
       }
-
-      const rows = (json.table && json.table.rows) || [];
-
-      // v = nilai mentah (seperti getValues), f = teks terformat (seperti getDisplayValues)
-      const V = (r, i) => (r.c && r.c[i] && r.c[i].v != null) ? r.c[i].v : '';
-      const F = (r, i) => {
-        if (!r.c || !r.c[i]) return '';
-        const cell = r.c[i];
-        if (cell.f != null) return cell.f;
-        return cell.v != null ? String(cell.v) : '';
-      };
-      const num = (val) => {
-        if (typeof val === 'number') return val;
-        const n = parseFloat(String(val).replace(/\s/g, '').replace('%', '').replace(',', '.'));
-        return isNaN(n) ? 0 : n;
-      };
-
-      return rows.map(r => ({
-        bulan:      V(r, COL.bulan),
-        tahun:      V(r, COL.tahun),
-        los:        V(r, COL.los),
-        channel:    V(r, COL.channel),
-        teamLeader: V(r, COL.teamLeader),
-        spv:        V(r, COL.spv),
-
-        responTime:    num(V(r, COL.responTime)),
-        ppa:           num(V(r, COL.ppa)),
-        sales:         num(V(r, COL.sales)),
-        interaksi:     num(V(r, COL.interaksi)),
-        qaScore:       num(V(r, COL.qaScore)),
-        to:            num(V(r, COL.to)),
-        kipDsc:        num(V(r, COL.kipDsc)),
-        totalTicket:   num(V(r, COL.totalTicket)),
-        qualityRespon: num(V(r, COL.qualityRespon)),
-
-        t_bulan:       F(r, COL.bulan),
-        t_tahun:       F(r, COL.tahun),
-        t_nama:        F(r, COL.nama),
-        t_los:         F(r, COL.los),
-        t_csdm:        F(r, COL.csdm),
-        t_tl:          F(r, COL.teamLeader),
-        t_spv:         F(r, COL.spv),
-        t_kehadiran:   F(r, COL.kehadiran),
-        t_rt:          F(r, COL.responTime),
-        t_ppa:         F(r, COL.ppa),
-        t_salesRatio:  F(r, COL.salesRatio),
-        t_qaScore:     F(r, COL.qaScore),
-        t_tnps:        F(r, COL.tnps),
-        t_to:          F(r, COL.to),
-        t_aht:         F(r, COL.aht),
-        t_kipDsc:      F(r, COL.kipDsc),
-        t_totalTicket: F(r, COL.totalTicket),
-        t_badTicket:   F(r, COL.badTicket),
-        t_fcr:         F(r, COL.fcr)
-      })).filter(d => String(d.t_nama).trim() !== '');
     }
 
-    /* ------------------------------- Init --------------------------------- */
+    /* ------------------------------- Init ---------------------------------- */
     getDashboardData()
       .then(data => {
         rawData = data;
@@ -334,7 +280,7 @@
           '<span class="w-2 h-2 rounded-full bg-red-500"></span> Data tidak terhubung';
       });
 
-    /* ------------------------------ Filter -------------------------------- */
+    /* ------------------------------ Filter --------------------------------- */
     function populateFilters() {
       const getUnique = (key) => [...new Set(rawData.map(d => d[key]).filter(v => v !== '' && v != null))].sort();
 
@@ -362,7 +308,7 @@
         options.map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('');
     }
 
-    /* ---------------------------- Render ---------------------------------- */
+    /* ------------------------------ Render --------------------------------- */
     function updateDashboard() {
       const fBulan   = document.getElementById('filter-bulan').value;
       const fTahun   = document.getElementById('filter-tahun').value;
@@ -436,7 +382,7 @@
       document.getElementById('val-fcr').innerText   = sumTicket ? ((sumKipDsc / sumTicket) * 100).toFixed(2) + '%' : '0%';
     }
 
-    /* ---------------------------- Export ---------------------------------- */
+    /* ------------------------------ Export --------------------------------- */
     function downloadExcel() {
       if (currentFilteredData.length === 0) {
         alert('Tidak ada data untuk diexport!');

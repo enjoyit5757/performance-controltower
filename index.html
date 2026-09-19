@@ -32,19 +32,54 @@
       * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
       .card:hover { transform: none; }
     }
+
+    #login-screen { background: linear-gradient(135deg, #eef2ff 0%, #f0f4f8 60%); }
   </style>
 </head>
-<body class="p-3 md:p-5">
-  <div id="app" class="w-full mx-auto">
+<body>
+
+  <!-- ======================= HALAMAN LOGIN ======================= -->
+  <div id="login-screen" class="min-h-screen flex items-center justify-center p-4">
+    <div class="card w-full max-w-sm">
+      <div class="text-center mb-6">
+        <div class="text-4xl mb-2">📊</div>
+        <h1 class="text-lg text-slate-800 uppercase tracking-wide">Ecare QIA Control Tower</h1>
+        <p class="text-xs text-slate-400 mt-1">Silakan login untuk melanjutkan</p>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs uppercase tracking-wider text-slate-500 mb-1">Username</label>
+          <input type="text" id="login-user" autocomplete="username"
+            class="w-full rounded-xl border-slate-200 bg-slate-50 p-2.5 text-sm outline-none border focus:bg-white">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-wider text-slate-500 mb-1">Password</label>
+          <input type="password" id="login-pass" autocomplete="current-password"
+            class="w-full rounded-xl border-slate-200 bg-slate-50 p-2.5 text-sm outline-none border focus:bg-white">
+        </div>
+        <p id="login-error" class="hidden text-red-500 text-xs">Username atau password salah.</p>
+        <button id="btn-login" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-sm mt-2">
+          Masuk
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= DASHBOARD (tersembunyi sampai login) ======================= -->
+  <div id="app" class="w-full mx-auto hidden p-3 md:p-5">
 
     <!-- Header -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 px-1 gap-4">
       <h1 class="text-2xl md:text-3xl tracking-wide uppercase text-slate-800">
         📊 Ecare QIA Performance Control Tower
       </h1>
-      <div id="conn-status" class="text-sm text-slate-500 flex items-center gap-2">
-        <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-        Menghubungkan ke sumber data
+      <div class="flex items-center gap-4">
+        <div id="conn-status" class="text-sm text-slate-500 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          Menghubungkan ke sumber data
+        </div>
+        <button id="btn-logout" class="text-xs text-slate-400 hover:text-red-500 underline">Keluar</button>
       </div>
     </div>
 
@@ -147,8 +182,8 @@
       <div class="card relative overflow-hidden group">
         <div class="flex justify-between items-start">
           <div>
-            <div class="text-slate-400 text-xs uppercase tracking-widest mb-1">Quality Respon</div>
-            <div id="val-qr" class="text-3xl text-slate-800">-</div>
+            <div class="text-slate-400 text-xs uppercase tracking-widest mb-1">Quality Ticket (%OK Badticket)</div>
+            <div id="val-qt" class="text-3xl text-slate-800">-</div>
           </div>
           <div class="p-3 rounded-xl bg-indigo-50 text-indigo-500 group-hover:scale-110 transition-transform">🛡️</div>
         </div>
@@ -202,6 +237,7 @@
               <th class="px-5 py-4 text-right">Total KIP DSC</th>
               <th class="px-5 py-4 text-right">Total Ticket</th>
               <th class="px-5 py-4 text-right">Total Bad Ticket</th>
+              <th class="px-5 py-4 text-right">% OK Badtiket</th>
               <th class="px-5 py-4 text-right">FCR</th>
             </tr>
           </thead>
@@ -214,15 +250,53 @@
   <script>
     /* =======================================================================
        CONFIG
-       -----------------------------------------------------------------------
-       APPS_SCRIPT_URL : URL deployment Apps Script (akhiran /exec).
-       Sheet TIDAK perlu dibuat publik — Apps Script yang membacanya.
-       Syarat deployment: Execute as = Me, Who has access = Anyone.
        ======================================================================= */
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwNJh_5fcYFxJkiz3I4-Jv70iazoFeNMzV2CAkMvv23in6OJIpCEkS6uc6jEqzRLAmB/exec';
 
+    // Kredensial login (CATATAN: ini hanya penghalang tampilan di sisi client,
+    // bukan keamanan sungguhan — siapa pun bisa lihat ini lewat View Source).
+    const LOGIN_USER = 'qiaecare';
+    const LOGIN_PASS = 'juara123';
+
     let rawData = [];
     let currentFilteredData = [];
+
+    /* ------------------------------ Login ----------------------------------- */
+    function showDashboard() {
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      loadData();
+    }
+
+    function attemptLogin() {
+      const u = document.getElementById('login-user').value.trim();
+      const p = document.getElementById('login-pass').value;
+      const errEl = document.getElementById('login-error');
+
+      if (u === LOGIN_USER && p === LOGIN_PASS) {
+        errEl.classList.add('hidden');
+        sessionStorage.setItem('qia_auth', 'ok');
+        showDashboard();
+      } else {
+        errEl.classList.remove('hidden');
+      }
+    }
+
+    document.getElementById('btn-login').addEventListener('click', attemptLogin);
+    document.getElementById('login-pass').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') attemptLogin();
+    });
+    document.getElementById('login-user').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('login-pass').focus();
+    });
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      sessionStorage.removeItem('qia_auth');
+      location.reload();
+    });
+
+    if (sessionStorage.getItem('qia_auth') === 'ok') {
+      showDashboard();
+    }
 
     /* ------------------------- Ambil data (JSON) --------------------------- */
     function fetchJsonp(baseUrl) {
@@ -244,7 +318,7 @@
       });
     }
 
-    async function getDashboardData() {
+    async function getDashboardDataFromApi() {
       try {
         const res = await fetch(APPS_SCRIPT_URL + '?mode=json', { redirect: 'follow' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -252,33 +326,32 @@
         if (!Array.isArray(data)) throw new Error('Respons bukan data tabel.');
         return data;
       } catch (err) {
-        // Sebagian browser/jaringan memblokir fetch lintas domain ke Google.
-        // JSONP memakai tag <script>, tidak terkena batasan itu.
         return await fetchJsonp(APPS_SCRIPT_URL);
       }
     }
 
-    /* ------------------------------- Init ---------------------------------- */
-    getDashboardData()
-      .then(data => {
-        rawData = data;
-        populateFilters();
-        updateDashboard();
+    function loadData() {
+      getDashboardDataFromApi()
+        .then(data => {
+          rawData = data;
+          populateFilters();
+          updateDashboard();
 
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('dashboard-cards').classList.remove('hidden');
-        document.getElementById('table-section').classList.remove('hidden');
-        document.getElementById('conn-status').innerHTML =
-          '<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Live Data Connected';
-      })
-      .catch(err => {
-        console.error(err);
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('error-box').classList.remove('hidden');
-        document.getElementById('error-detail').innerText = err.message;
-        document.getElementById('conn-status').innerHTML =
-          '<span class="w-2 h-2 rounded-full bg-red-500"></span> Data tidak terhubung';
-      });
+          document.getElementById('loading').style.display = 'none';
+          document.getElementById('dashboard-cards').classList.remove('hidden');
+          document.getElementById('table-section').classList.remove('hidden');
+          document.getElementById('conn-status').innerHTML =
+            '<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Live Data Connected';
+        })
+        .catch(err => {
+          console.error(err);
+          document.getElementById('loading').style.display = 'none';
+          document.getElementById('error-box').classList.remove('hidden');
+          document.getElementById('error-detail').innerText = err.message;
+          document.getElementById('conn-status').innerHTML =
+            '<span class="w-2 h-2 rounded-full bg-red-500"></span> Data tidak terhubung';
+        });
+    }
 
     /* ------------------------------ Filter --------------------------------- */
     function populateFilters() {
@@ -333,8 +406,8 @@
       });
 
       let sumRT = 0, countRT = 0, sumPPA = 0, sumSales = 0, sumInteraksi = 0;
-      let sumQA = 0, countQA = 0, sumTO = 0, countTO = 0, sumQR = 0, countQR = 0;
-      let sumKipDsc = 0, sumTicket = 0;
+      let sumQA = 0, countQA = 0, sumTO = 0, countTO = 0;
+      let sumKipDsc = 0, sumTicket = 0, sumBadTicket = 0;
 
       const rowsHtml = currentFilteredData.map(d => {
         sumRT += d.responTime; countRT++;
@@ -342,8 +415,13 @@
         sumSales += d.sales; sumInteraksi += d.interaksi;
         sumQA += d.qaScore; countQA++;
         sumTO += d.to; countTO++;
-        sumQR += d.qualityRespon; countQR++;
-        sumKipDsc += d.kipDsc; sumTicket += d.totalTicket;
+        sumKipDsc += d.kipDsc;
+        sumTicket += d.totalTicket;
+        sumBadTicket += (d.badTicket || 0);
+
+        const okBadTicketPct = d.totalTicket
+          ? (((d.totalTicket - (d.badTicket || 0)) / d.totalTicket) * 100).toFixed(2) + '%'
+          : '0%';
 
         return `
           <tr class="hover:bg-slate-50/80 cursor-default">
@@ -364,13 +442,14 @@
             <td class="px-5 py-3 text-right">${escapeHtml(d.t_aht)}</td>
             <td class="px-5 py-3 text-right">${escapeHtml(d.t_kipDsc)}</td>
             <td class="px-5 py-3 text-right">${escapeHtml(d.t_totalTicket)}</td>
-            <td class="px-5 py-3 text-right">${escapeHtml(d.t_badTicket)}</td>
+            <td class="px-5 py-3 text-right">${escapeHtml(d.t_badTicket)} <span class="text-slate-300 text-xs">(raw:${d.badTicket})</span></td>
+            <td class="px-5 py-3 text-right">${okBadTicketPct}</td>
             <td class="px-5 py-3 text-right text-teal-600">${escapeHtml(d.t_fcr)}</td>
           </tr>`;
       }).join('');
 
       document.getElementById('table-body').innerHTML = rowsHtml ||
-        `<tr><td colspan="19" class="px-5 py-10 text-center text-slate-400">Tidak ada data yang cocok dengan filter ini.</td></tr>`;
+        `<tr><td colspan="20" class="px-5 py-10 text-center text-slate-400">Tidak ada data yang cocok dengan filter ini.</td></tr>`;
       document.getElementById('row-count').innerText = `(${currentFilteredData.length} baris)`;
 
       document.getElementById('val-rt').innerText    = countRT ? (sumRT / countRT).toFixed(2) : 0;
@@ -378,8 +457,14 @@
       document.getElementById('val-sales').innerText = sumInteraksi ? ((sumSales / sumInteraksi) * 100).toFixed(2) + '%' : '0%';
       document.getElementById('val-qa').innerText    = countQA ? (sumQA / countQA).toFixed(2) : 0;
       document.getElementById('val-to').innerText    = countTO ? (sumTO / countTO).toFixed(2) : 0;
-      document.getElementById('val-qr').innerText    = countQR ? (sumQR / countQR).toFixed(2) : 0;
-      document.getElementById('val-fcr').innerText   = sumTicket ? ((sumKipDsc / sumTicket) * 100).toFixed(2) + '%' : '0%';
+
+      // Quality Ticket = (Kolom X - Kolom Y) / Kolom X = (Total Ticket - Total Bad Ticket) / Total Ticket
+      document.getElementById('val-qt').innerText =
+        sumTicket ? (((sumTicket - sumBadTicket) / sumTicket) * 100).toFixed(2) + '%' : '0%';
+
+      // FCR = (Kolom V - Kolom X) / Kolom V = (Total KIP DSC - Total Ticket) / Total KIP DSC
+      document.getElementById('val-fcr').innerText =
+        sumKipDsc ? (((sumKipDsc - sumTicket) / sumKipDsc) * 100).toFixed(2) + '%' : '0%';
     }
 
     /* ------------------------------ Export --------------------------------- */
@@ -388,13 +473,18 @@
         alert('Tidak ada data untuk diexport!');
         return;
       }
-      const excelData = currentFilteredData.map(d => ({
-        "Bulan": d.t_bulan, "Tahun": d.t_tahun, "Nama Agent": d.t_nama, "LOS": d.t_los, "CSDM": d.t_csdm,
-        "Team Leader": d.t_tl, "SPV": d.t_spv, "Kehadiran": d.t_kehadiran, "Respon Time": d.t_rt,
-        "PPA": d.t_ppa, "Sales Ratio": d.t_salesRatio, "QA Score": d.t_qaScore, "tNPS": d.t_tnps,
-        "TO": d.t_to, "AHT": d.t_aht, "Total KIP DSC": d.t_kipDsc, "Total Ticket": d.t_totalTicket,
-        "Total Bad Ticket": d.t_badTicket, "FCR": d.t_fcr
-      }));
+      const excelData = currentFilteredData.map(d => {
+        const okBadTicketPct = d.totalTicket
+          ? (((d.totalTicket - (d.badTicket || 0)) / d.totalTicket) * 100).toFixed(2) + '%'
+          : '0%';
+        return {
+          "Bulan": d.t_bulan, "Tahun": d.t_tahun, "Nama Agent": d.t_nama, "LOS": d.t_los, "CSDM": d.t_csdm,
+          "Team Leader": d.t_tl, "SPV": d.t_spv, "Kehadiran": d.t_kehadiran, "Respon Time": d.t_rt,
+          "PPA": d.t_ppa, "Sales Ratio": d.t_salesRatio, "QA Score": d.t_qaScore, "tNPS": d.t_tnps,
+          "TO": d.t_to, "AHT": d.t_aht, "Total KIP DSC": d.t_kipDsc, "Total Ticket": d.t_totalTicket,
+          "% OK Badtiket": okBadTicketPct, "FCR": d.t_fcr
+        };
+      });
       const worksheet = XLSX.utils.json_to_sheet(excelData);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Agent Performance");

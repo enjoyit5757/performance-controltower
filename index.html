@@ -79,13 +79,23 @@
           <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
           Menghubungkan ke sumber data
         </div>
-        <button id="btn-logout" class="text-xs text-slate-400 hover:text-red-500 underline">Keluar</button>
+        <button id="btn-logout" class="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 py-1.5 px-3.5 rounded-lg text-xs transition-all">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+          Keluar
+        </button>
       </div>
     </div>
 
     <!-- Filter -->
     <div class="bg-white p-6 rounded-2xl shadow-sm mb-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5 border border-slate-100 relative overflow-hidden">
       <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
+      <div class="col-span-2 md:col-span-3 lg:col-span-6 flex justify-between items-center -mb-1">
+        <span class="text-xs uppercase tracking-widest text-slate-400">Filter</span>
+        <button id="btn-reset-filter" class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 border border-slate-200 py-1.5 px-3 rounded-lg transition-all">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+          Reset Filter
+        </button>
+      </div>
       <div>
         <label for="filter-bulan" class="block text-xs uppercase tracking-wider text-slate-500 mb-2">Bulan</label>
         <select id="filter-bulan" class="w-full rounded-xl border-slate-200 bg-slate-50 p-2.5 text-sm outline-none border focus:bg-white"></select>
@@ -367,6 +377,14 @@
       document.querySelectorAll('select').forEach(sel => sel.addEventListener('change', updateDashboard));
       document.getElementById('search-agent').addEventListener('input', updateDashboard);
       document.getElementById('btn-export').addEventListener('click', downloadExcel);
+      document.getElementById('btn-reset-filter').addEventListener('click', resetFilters);
+    }
+
+    function resetFilters() {
+      document.querySelectorAll('#filter-bulan, #filter-tahun, #filter-channel, #filter-spv, #filter-tl, #filter-los')
+        .forEach(sel => { sel.value = 'ALL'; });
+      document.getElementById('search-agent').value = '';
+      updateDashboard();
     }
 
     function escapeHtml(str) {
